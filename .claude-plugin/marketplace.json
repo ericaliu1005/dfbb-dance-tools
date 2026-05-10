@@ -1,0 +1,15 @@
+{
+  "name": "dfbb-dance-tools",
+  "owner": {
+    "name": "DFBB Dance Crew"
+  },
+  "description": "Dance practice toolkit by DFBB Dance Crew — speed estimation, video tools, metronome / count-in.",
+  "plugins": [
+    {
+      "name": "dfbb-dance-tools",
+      "source": "./",
+      "version": "0.1.0",
+      "description": "Estimate practice speed, slow down/mirror videos, and generate metronome / count-in audio. Cross-compatible with Claude Code / Cowork and Codex."
+    }
+  ]
+}
