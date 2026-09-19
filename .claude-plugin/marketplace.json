@@ -8,7 +8,7 @@
     {
       "name": "dfbb-dance-tools",
       "source": "./",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Estimate practice speed, slow down/mirror videos, and generate metronome / count-in audio. Cross-compatible with Claude Code / Cowork and Codex."
     }
   ]

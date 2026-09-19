@@ -21,8 +21,11 @@ in your recording), so no need to pre-trim.
 
 ### `dance-video-tools`
 
-Slow down a video to a target speed and/or horizontally mirror it. Outputs 1080p.
-Both transforms are independent — ask for slowdown only, mirror only, or both.
+Slow down a video to a target speed and/or horizontally mirror it. Output long side
+is capped at 1920, so landscape comes out 1080p and portrait phone footage stays
+portrait (1080x1920). Both transforms are independent — ask for slowdown only,
+mirror only, or both. Can also cut out just a section ("the chorus from 1:05 to 1:30
+at 60%").
 
 > *"Make me a 75% mirror version of the dance practice video"* →
 > `dance-video-tools` → `original_75%_mirror.mp4`
@@ -42,27 +45,29 @@ cowbell) plus an `auto` mode that picks based on the music's spectral character.
 
 ## Prerequisites
 
-The scripts shell out to `ffmpeg` and a few Python audio libraries. Install once:
+Two tools on PATH: `ffmpeg` (audio/video processing) and [`uv`](https://docs.astral.sh/uv/)
+(runs the Python scripts). The scripts declare their own Python dependencies
+(numpy, scipy, librosa) inline, so `uv run` installs them into a cached environment
+the first time — nothing to `pip install`, no virtualenv to manage.
 
 **macOS** (Homebrew):
 
 ```bash
-brew install ffmpeg
-pip3 install numpy librosa scipy
+brew install ffmpeg uv
 ```
 
 **Linux** (Debian / Ubuntu):
 
 ```bash
-sudo apt install ffmpeg python3-pip
-pip3 install numpy librosa scipy
+sudo apt install ffmpeg
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**Windows** — install [ffmpeg](https://ffmpeg.org/download.html) and add it to
-PATH, then `pip install numpy librosa scipy`.
+**Windows** — install [ffmpeg](https://ffmpeg.org/download.html) and add it to PATH,
+then `winget install astral-sh.uv` (or see the uv install docs).
 
-If something's missing when you run a skill, the error message tells you what to
-install.
+No `uv`? The scripts are plain Python 3.10–3.13 and also run with
+`python3 script.py` after `pip install numpy scipy librosa`.
 
 ## Install
 
@@ -109,6 +114,14 @@ cp -r dfbb-dance-tools/skills/* /path/to/your/project/.codex/skills/
 
 Once installed, the skills auto-trigger when you describe what you want — no need to
 remember command names.
+
+## Tests
+
+```bash
+uv run tests/test_synthetic.py
+```
+
+Synthesizes its own audio/video, so nothing to download. Needs `ffmpeg` and `uv`.
 
 ## License
 

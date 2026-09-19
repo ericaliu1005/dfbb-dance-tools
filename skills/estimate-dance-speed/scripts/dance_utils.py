@@ -1,8 +1,9 @@
 """
 dance_utils.py
 
-Shared audio processing utilities for the dance comparison toolkit.
-Imported by estimate_dance_speed.py and stack_videos.py.
+Shared audio processing utilities for the dance toolkit.
+Imported by estimate_dance_speed.py. `find_sync_offset` is not used by any
+shipped script yet; it is the building block for a future side-by-side / stack tool.
 """
 
 from __future__ import annotations

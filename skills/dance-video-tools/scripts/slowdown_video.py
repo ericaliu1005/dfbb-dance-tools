@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10,<3.14"
+# dependencies = []
+# ///
 """
 slowdown_video.py
 
 Slow down a video to a target speed, with optional horizontal mirror.
+Output long side is capped at 1920 (1080p landscape, 1080x1920 portrait), never upscaled.
 
 Usage:
   python slowdown_video.py --input original.mp4 --speed 0.60
@@ -62,6 +67,22 @@ def default_output_name(input_path: str, speed: float, mirror: bool) -> str:
     return f"{base}{suffix}.mp4"
 
 
+# Cap the LONG side at 1920 so landscape lands at 1920x1080 and portrait at 1080x1920.
+# Never upscale. The -2 keeps aspect and rounds the free side to even (libx264 needs even).
+SCALE_LONG_SIDE_1920 = (
+    "scale=w='if(gte(a,1),trunc(min(1920,iw)/2)*2,-2)'"
+    ":h='if(gte(a,1),-2,trunc(min(1920,ih)/2)*2)'"
+)
+
+
+def build_video_filter(speed: float, mirror: bool) -> str:
+    vf_parts = [f"setpts=PTS/{speed:.6f}"]
+    if mirror:
+        vf_parts.append("hflip")
+    vf_parts.append(SCALE_LONG_SIDE_1920)
+    return ",".join(vf_parts)
+
+
 def slowdown_video(
     input_path: str,
     output_path: str,
@@ -69,17 +90,10 @@ def slowdown_video(
     mirror: bool,
     preset: str = "fast",
     crf: int = 20,
+    start: float = 0.0,
+    duration: float | None = None,
 ) -> None:
-    # Video filter: slow down + optional mirror + scale-and-pad to 1080p
-    # 1080p is fast and plenty sharp for practice review; 4K originals take far too long.
-    vf_parts = [f"setpts=PTS/{speed:.6f}"]
-    if mirror:
-        vf_parts.append("hflip")
-    vf_parts.append(
-        "scale=1920:1080:force_original_aspect_ratio=decrease,"
-        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2"
-    )
-    vf = ",".join(vf_parts)
+    vf = build_video_filter(speed, mirror)
 
     # Audio filter: chained atempo
     af = build_atempo_chain(speed)
@@ -87,9 +101,12 @@ def slowdown_video(
     eprint(f"  Video filter : {vf}")
     eprint(f"  Audio filter : {af}")
 
-    cmd = [
-        "ffmpeg",
-        "-y",
+    cmd = ["ffmpeg", "-y"]
+    if start > 0:
+        cmd += ["-ss", f"{start:.3f}"]
+    if duration is not None:
+        cmd += ["-t", f"{duration:.3f}"]
+    cmd += [
         "-i", input_path,
         "-vf", vf,
         "-af", af,
@@ -123,6 +140,10 @@ def main() -> int:
                              "speed at the cost of bigger file/lower compression.")
     parser.add_argument("--crf", type=int, default=20,
                         help="Constant Rate Factor 0-51 (default 20). Lower = better quality, bigger file.")
+    parser.add_argument("--start", type=float, default=0.0,
+                        help="Only encode from this input timestamp (seconds). For chunked encoding.")
+    parser.add_argument("--duration", type=float, default=None,
+                        help="Only encode this many input seconds from --start. For chunked encoding.")
     args = parser.parse_args()
 
     if not os.path.exists(args.input):
@@ -132,6 +153,8 @@ def main() -> int:
     if args.speed == 1.0 and not args.mirror:
         raise ValueError("Nothing to do — speed is 1.0 and --mirror not set. "
                          "Specify --speed <X> or --mirror (or both).")
+    if args.start < 0 or (args.duration is not None and args.duration <= 0):
+        raise ValueError("--start must be >= 0 and --duration must be > 0")
 
     output = args.output or default_output_name(args.input, args.speed, args.mirror)
 
@@ -144,7 +167,8 @@ def main() -> int:
     eprint("Processing...")
 
     slowdown_video(args.input, output, args.speed, args.mirror,
-                   preset=args.preset, crf=args.crf)
+                   preset=args.preset, crf=args.crf,
+                   start=args.start, duration=args.duration)
 
     print(output)   # stdout: just the output path, easy to pipe
     return 0

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10,<3.14"
+# dependencies = ["numpy>=1.24", "scipy>=1.10", "librosa>=0.10"]
+# ///
 """
 Generate a 4-eight-count (32-beat, 4/4) metronome at a target BPM.
 
@@ -99,12 +103,29 @@ PRESET_DESCRIPTIONS = {
 
 # ---------- BPM detection ----------
 
+# Beat trackers often lock onto half or double time. Most pop/kpop sits in this band;
+# a detection outside it gets flagged with the octave alternative for the user to confirm.
+PLAUSIBLE_BPM = (90.0, 190.0)
+
+
 def detect_bpm(song_path):
-    """Use librosa to estimate BPM. Falls back gracefully if the song has tempo drift."""
+    """Use librosa to estimate BPM."""
     import librosa
     y, sr = librosa.load(str(song_path), sr=22050)
     tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-    return float(tempo)
+    return float(np.asarray(tempo).reshape(-1)[0])
+
+
+def octave_warning(bpm):
+    """Return a warning string if bpm looks like a half/double-time detection, else None."""
+    lo, hi = PLAUSIBLE_BPM
+    if bpm < lo:
+        return (f"WARN: {bpm:.1f} BPM is unusually slow — beat trackers often report half-time. "
+                f"Confirm with the user; the double-time alternative is {bpm * 2:.1f} BPM (--bpm {bpm * 2:.1f}).")
+    if bpm > hi:
+        return (f"WARN: {bpm:.1f} BPM is unusually fast — beat trackers often report double-time. "
+                f"Confirm with the user; the half-time alternative is {bpm / 2:.1f} BPM (--bpm {bpm / 2:.1f}).")
+    return None
 
 
 # ---------- Auto preset selection ----------
@@ -169,7 +190,9 @@ def encode(wav_path, out_path):
     elif ext == ".mp3": cmd += ["-c:a", "libmp3lame", "-b:a", "192k"]
     else: raise ValueError(f"Unsupported extension: {ext}")
     cmd += [str(out_path)]
-    subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed writing {out_path}:\n{proc.stderr}")
 
 
 def render_and_write(bpm, preset_name, output_path):
@@ -207,6 +230,9 @@ def main():
     else:
         bpm = detect_bpm(args.song)
         bpm_source = f"detected {bpm:.1f} BPM from {Path(args.song).name}"
+        warning = octave_warning(bpm)
+        if warning:
+            print(warning, file=sys.stderr)
 
     # Resolve preset(s)
     if args.all:
@@ -232,11 +258,15 @@ def main():
         return f"metronome_{bpm_str}bpm_{preset}.m4a"
 
     if args.all:
-        # If --output looks like a directory, use it; else use cwd
+        # --all writes 5 files, so --output is a directory. A file path degrades to its parent.
         if args.output and Path(args.output).suffix == "":
-            out_dir = Path(args.output); out_dir.mkdir(parents=True, exist_ok=True)
+            out_dir = Path(args.output)
+        elif args.output:
+            out_dir = Path(args.output).parent
+            print(f"WARN: --all ignores the filename in --output; writing into {out_dir}/", file=sys.stderr)
         else:
             out_dir = Path.cwd()
+        out_dir.mkdir(parents=True, exist_ok=True)
         outputs = [(p, out_dir / default_name(p)) for p in presets]
     else:
         out_path = Path(args.output) if args.output else Path.cwd() / default_name(presets[0])

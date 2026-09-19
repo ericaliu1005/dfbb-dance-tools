@@ -35,23 +35,37 @@ When this skill triggers, **don't run anything yet**. Confirm these up front (us
    If only one likely candidate, just confirm.
 2. **Practice file** — same.
 3. **Speed range** — "Do you have a rough idea of the speed?"
-   - 55–90% (slow practice, default)
-   - 70–100% (closer to full speed)
+   - 55–100% (script default — covers slow practice through full speed)
+   - 70–100% (closer to full speed; faster, slightly sharper confidence)
    - Custom
 
 Skip questions the user already answered.
 
+## Locating the script
+
+Paths in this file are relative to this skill's directory (the folder containing this
+SKILL.md). The shell's cwd is the user's workspace, **not** that folder, so build an
+absolute path before running: take the directory you loaded this SKILL.md from and
+append `scripts/...`. In Claude Code plugin installs that directory is
+`${CLAUDE_PLUGIN_ROOT}/skills/estimate-dance-speed/` when the variable is set; under Codex it is where
+the skill was symlinked or copied (typically `~/.codex/skills/estimate-dance-speed/`).
+
 ## Running
 
-The script is at `scripts/estimate_dance_speed.py`. It depends on `librosa`, `numpy`,
-`scipy` (`pip install librosa scipy --break-system-packages` if missing) and `ffmpeg`.
+The script is at `scripts/estimate_dance_speed.py`. Run it with `uv run` — the script
+declares its Python dependencies (numpy, scipy, librosa) inline, and uv installs them
+into a cached environment on first run. Only `ffmpeg` and `uv` need to be on PATH.
+If `uv` is missing, fall back to `python3` with the packages installed manually.
 
 ```bash
-# Always run on the FULL practice file — no pre-trimming needed
-python3 scripts/estimate_dance_speed.py \
+# Always run on the FULL practice file — no pre-trimming needed.
+# Defaults search 55%–100%; pass --min-speed/--max-speed to narrow.
+uv run scripts/estimate_dance_speed.py \
   --original "original.mp4" \
-  --practice "practice.MOV" \
-  --min-speed 0.55 --max-speed 1.0
+  --practice "practice.MOV"
+
+# Machine-readable output for parsing
+uv run scripts/estimate_dance_speed.py --original "original.mp4" --practice "practice.MOV" --json
 ```
 
 ## Output
@@ -72,6 +86,12 @@ Confidence:            0.97        ← ≥0.70 reliable, <0.45 something's off
 
 You can casually mention the start time to the user — useful to know if they're
 about to slowdown/mirror the practice itself.
+
+## When the result is at the edge of the range
+
+If the notes say the best match sits at the edge of the search range, the true speed
+is probably outside it. Widen the range (e.g. `--min-speed 0.40` or
+`--max-speed 1.20`) and rerun before reporting.
 
 ## When confidence is low
 

@@ -67,6 +67,11 @@ Combine the unknowns into one batch. Skip questions the user already answered.
 
 1. **Tempo source** (always confirm)
    - "用什么 BPM？直接给个数字 / 用一首歌的文件" → number or file path
+   - If detecting from a song: beat trackers often lock onto **half or double time**
+     (a 140 BPM kpop track reported as 70). The script prints a `WARN` with the
+     octave alternative when the detection falls outside 90–190 BPM. When you see
+     it, confirm the tempo with the user before generating, offering both values.
+     If they're unsure, generate both (`--bpm 70` and `--bpm 140`) and let them pick.
 2. **Preset choice** (only if user didn't already say)
    - Recommend `kick_wood` as default
    - If user gave a song, offer `auto` as an option
@@ -74,38 +79,50 @@ Combine the unknowns into one batch. Skip questions the user already answered.
 3. **Output filename** — only ask if the default would overwrite something in the
    workspace; otherwise let the script auto-name.
 
-After running, share the file with a `computer://` link and a one-line summary:
-preset name, BPM, duration. Don't dump the ffmpeg log into the chat.
+After running, share the file's absolute path (in Cowork, as a `computer://` link)
+with a one-line summary: preset name, BPM, duration. Don't dump the ffmpeg log into the chat.
+
+## Locating the script
+
+Paths in this file are relative to this skill's directory (the folder containing this
+SKILL.md). The shell's cwd is the user's workspace, **not** that folder, so build an
+absolute path before running: take the directory you loaded this SKILL.md from and
+append `scripts/...`. In Claude Code plugin installs that directory is
+`${CLAUDE_PLUGIN_ROOT}/skills/metronome-generator/` when the variable is set; under Codex it is where
+the skill was symlinked or copied (typically `~/.codex/skills/metronome-generator/`).
 
 ## Running the script
 
-The script is at `scripts/generate_metronome.py`. It needs `numpy` (and `librosa`
-when `--song` or `--preset auto` is used) plus `ffmpeg` on PATH.
+The script is at `scripts/generate_metronome.py`. Run it with `uv run` — the script
+declares its Python dependencies inline and uv installs them into a cached
+environment on first run. Only `ffmpeg` and `uv` need to be on PATH. If `uv` is
+missing, fall back to `python3` with numpy, scipy and librosa installed manually.
 
 ```bash
 # Direct BPM, default preset
-python3 scripts/generate_metronome.py --bpm 143.6
+uv run scripts/generate_metronome.py --bpm 143.6
 
 # Direct BPM, specific preset, custom output path (always save to workspace folder)
-python3 scripts/generate_metronome.py --bpm 120 --preset cowbell \
+uv run scripts/generate_metronome.py --bpm 120 --preset cowbell \
   --output "/Users/me/skills/dance-practice/click_120.m4a"
 
 # From a song — auto-detect BPM, default preset
-python3 scripts/generate_metronome.py --song "贱侠.m4a"
+uv run scripts/generate_metronome.py --song "贱侠.m4a"
 
 # From a song — auto-detect BPM AND auto-pick preset based on song style
-python3 scripts/generate_metronome.py --song "贱侠.m4a" --preset auto
+uv run scripts/generate_metronome.py --song "贱侠.m4a" --preset auto
 
 # Generate all 5 presets for A/B comparison (BPM detected from song)
-python3 scripts/generate_metronome.py --song "贱侠.m4a" --all
+uv run scripts/generate_metronome.py --song "贱侠.m4a" --all
 
 # All 5 presets at a fixed BPM, written into a directory
-python3 scripts/generate_metronome.py --bpm 130 --all --output ./metronomes/
+uv run scripts/generate_metronome.py --bpm 130 --all --output ./metronomes/
 ```
 
 The script prints the BPM source ("specified" vs "detected from <file>") and, for
 auto preset, the reason it picked what it did. Surface that to the user — it
-helps them trust the result.
+helps them trust the result. Any `WARN` line on stderr (half/double-time suspicion,
+`--all` ignoring a filename) is meant for you to act on, not to hide.
 
 ## Common follow-ups
 
@@ -136,5 +153,5 @@ recipe instead.
   as their project), not `/tmp`. The default filename pattern
   `metronome_<bpm>bpm_<preset>.m4a` is informative — keep it unless the user
   asked for something specific.
-- Share via `computer://` link, not file content dumps.
-- One-line post-script: `[link]  <preset> · <bpm> BPM · 4 eight-counts (Xs)`.
+- Share the absolute path (Cowork: `computer://` link), not file content dumps.
+- One-line post-script: `<path>  <preset> · <bpm> BPM · 4 eight-counts (Xs)`.

@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10,<3.14"
+# dependencies = ["numpy>=1.24", "scipy>=1.10", "librosa>=0.10"]
+# ///
 """
 estimate_dance_speed.py
 
 Usage:
   python estimate_dance_speed.py --original original.mp4 --practice practice.mp4
-  python estimate_dance_speed.py --original original.mp3 --practice practice.mp4 --min-speed 0.55 --max-speed 0.90
+  python estimate_dance_speed.py --original original.mp3 --practice practice.mp4 --min-speed 0.70 --max-speed 1.00
 
 What it does:
 - Accepts audio or video as input
 - Extracts mono audio via ffmpeg
 - Builds onset envelopes with librosa
-- Searches candidate speed factors (e.g. 0.55x to 1.00x)
+- Searches candidate speed factors (default 0.55x to 1.00x)
 - Finds the best speed + offset by normalized cross-correlation
 
 Output example:
@@ -129,7 +133,11 @@ def estimate_speed_and_offset(
     best_score, best_speed, best_lag_frames = scored[0]
     second_score = scored[1][0] if len(scored) > 1 else (best_score - 1e-6)
 
+    # Lag is measured on the speed-compressed practice timeline. A negative lag is
+    # pre-roll inside the practice recording, so convert it back to practice seconds.
     offset_seconds = best_lag_frames * hop_length / sr
+    if offset_seconds < 0:
+        offset_seconds /= best_speed
     confidence = confidence_from_scores(best_score, second_score)
 
     if confidence < 0.45:
@@ -139,8 +147,9 @@ def estimate_speed_and_offset(
     else:
         notes.append("High confidence: strong rhythmic alignment found.")
 
-    if best_speed < 0.75 or best_speed > 1.05:
-        notes.append("Estimated speed is somewhat unusual; verify that both clips use the same song/version.")
+    if abs(best_speed - candidate_speeds[0]) < step * 0.5 or abs(best_speed - candidate_speeds[-1]) < step * 0.5:
+        notes.append(f"Best match sits at the edge of the search range ({min_speed:.0%}–{max_speed:.0%}); "
+                     "the true speed may lie outside it. Widen --min-speed/--max-speed and rerun.")
 
     return EstimateResult(
         speed=best_speed,
@@ -160,7 +169,7 @@ def main() -> int:
     parser.add_argument("--practice",   required=True,                help="Practice audio/video path")
     parser.add_argument("--sr",         type=int,   default=DEFAULT_SR,  help="Audio sample rate for analysis")
     parser.add_argument("--hop-length", type=int,   default=DEFAULT_HOP, help="Hop length for onset envelope")
-    parser.add_argument("--min-speed",  type=float, default=0.70,        help="Minimum candidate speed")
+    parser.add_argument("--min-speed",  type=float, default=0.55,        help="Minimum candidate speed")
     parser.add_argument("--max-speed",  type=float, default=1.00,        help="Maximum candidate speed")
     parser.add_argument("--step",       type=float, default=0.01,        help="Candidate speed step")
     parser.add_argument("--json",       action="store_true",             help="Print JSON output")
