@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-09-21
+
+### Added
+- **align-practice-video** (new skill) — lines a practice recording up with the slowed reference it was danced to. Matches onset envelopes in ~20 s windows across the whole song, drops windows that match poorly, takes a robust median offset, and reports whether the offset is constant or drifting. Renders a pre-trimmed copy of the practice that drops onto the timeline at position 0 already aligned (video cut on whole frames, audio cut to the exact sample), converts variable-frame-rate phone footage to constant frame rate on the way through, and re-measures its own output to report the leftover error.
+
+### Notes
+- The new skill exists because editor auto-sync leaves a visible slip and the natural reaction — cutting the practice into sections and nudging each one — makes things worse: at 30 fps every nudge is 33 ms, usually larger than the error being chased, and the joins end up with gaps. Measuring the offset once, properly, is the fix.
+
 ## 0.2.1 — 2026-09-20
 
 ### Fixed

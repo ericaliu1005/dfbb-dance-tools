@@ -39,6 +39,17 @@ the file useless — the checker catches that before you find out mid-practice.
 Designed to grow — anything else dance-video-related (trim, stack two videos
 side-by-side, add subtitles) belongs here.
 
+### `align-practice-video`
+
+Line a practice recording up with the slowed reference video it was danced to. Measures
+the offset across the whole song (not just at the start), says whether it is constant or
+drifting, and renders a pre-trimmed practice file that drops onto an editor timeline at
+position 0 already aligned. Variable-frame-rate phone footage is converted to constant
+frame rate on the way through.
+
+> "跟降速版对不齐" / "the sync is off in my editor"
+> `align-practice-video` → `IMG_8087_aligned.mp4`, leftover error a few ms
+
 ### `metronome-generator`
 
 Generate a 4-eight-count (32-beat, 4/4) metronome / count-in audio file. Two input

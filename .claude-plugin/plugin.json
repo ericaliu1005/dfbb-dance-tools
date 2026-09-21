@@ -1,6 +1,6 @@
 {
   "name": "dfbb-dance-tools",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Dance practice toolkit — estimate practice speed, slow down/mirror videos, and generate metronome / count-in audio. Built by DFBB Dance Crew (Boston kpop dance team) for our own practice; shared publicly for any dancer.",
   "author": {
     "name": "DFBB Dance Crew",
@@ -14,6 +14,8 @@
     "video",
     "practice",
     "bpm",
-    "mirror"
+    "mirror",
+    "sync",
+    "align"
   ]
 }
