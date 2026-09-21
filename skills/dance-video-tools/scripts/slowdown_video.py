@@ -7,6 +7,11 @@
 slowdown_video.py
 
 Slow down a video to a target speed, with optional horizontal mirror.
+
+Encode the whole video in ONE invocation. Splitting the input and concatenating the
+parts makes the picture drift ~1 frame per chunk behind its own audio. Use
+--preset veryfast if a full-length encode is too slow, and verify the result with
+check_av_sync.py.
 Output long side is capped at 1920 (1080p landscape, 1080x1920 portrait), never upscaled.
 
 Usage:
@@ -110,6 +115,9 @@ def slowdown_video(
         "-i", input_path,
         "-vf", vf,
         "-af", af,
+        # Constant frame rate: setpts stretches timestamps, and without this the
+        # output can carry uneven frame spacing that editors re-time badly.
+        "-vsync", "cfr",
         "-c:v", "libx264",
         "-preset", preset,
         "-crf", str(crf),

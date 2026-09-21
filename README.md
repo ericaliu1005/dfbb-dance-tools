@@ -30,6 +30,12 @@ at 60%").
 > *"Make me a 75% mirror version of the dance practice video"* →
 > `dance-video-tools` → `original_75%_mirror.mp4`
 
+Every output is encoded in a single pass and then checked with
+`scripts/check_av_sync.py`, which matches the result back against the source frame by
+frame and sample by sample. Slowdowns are meant to be stacked against a practice
+recording in an editor, so a picture that drifts a few frames from its own audio makes
+the file useless — the checker catches that before you find out mid-practice.
+
 Designed to grow — anything else dance-video-related (trim, stack two videos
 side-by-side, add subtitles) belongs here.
 

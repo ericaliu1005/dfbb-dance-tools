@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 — 2026-09-20
+
+### Fixed
+- **dance-video-tools:** SKILL.md no longer suggests chunked encoding + `ffmpeg concat` as a timeout workaround. Measured on real output: each chunk adds about one frame, so the picture drifts ~1 frame per chunk behind its own audio (a 3-minute video in six chunks ended up 4 frames out by the end, growing steadily rather than as a constant offset). Single-pass encoding is now the rule, with `--preset veryfast` as the way to fit inside a command timeout.
+- **dance-video-tools:** `slowdown_video.py` now passes `-vsync cfr`, so output frame spacing is constant and editors re-time it correctly.
+
+### Added
+- **dance-video-tools:** `scripts/check_av_sync.py` — verifies a slowed/mirrored output against its source by fitting `source_t = slope * out_t` separately for the video and audio tracks, and fails when either slips or the two pull apart. SKILL.md now requires running it before handing a file over.
+
 ## 0.2.0 — 2026-09-19
 
 ### Changed

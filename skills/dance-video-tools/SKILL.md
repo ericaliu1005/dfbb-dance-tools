@@ -68,7 +68,8 @@ the skill was symlinked or copied (typically `~/.codex/skills/dance-video-tools/
 ## Running
 
 The script is at `scripts/slowdown_video.py`. It depends on `ffmpeg` only — no Python
-packages. `uv run` and `python3` both work; `uv run` is used below for consistency
+packages. (`scripts/check_av_sync.py`, used in the verification step below, also needs
+`numpy`; `uv run` fetches it automatically.) `uv run` and `python3` both work; `uv run` is used below for consistency
 with the other skills.
 
 ```bash
@@ -103,33 +104,65 @@ Output is auto-named based on what was applied:
 | 60%   | yes    | `original_60%_mirror.mp4`    |
 | 100%  | yes    | `original_mirror.mp4`        |
 
-The script uses x264 `preset=fast crf=20` by default — good quality with reasonable
-speed. `--preset ultrafast` is several times faster at a small file-size cost, fine
-for practice videos.
+The script uses x264 `preset=fast crf=20` by default. For a practice video, prefer
+`--preset veryfast` — on a 4-core machine a 3-minute 1080p slowdown finishes in about
+75 seconds, which fits inside almost any command timeout. `--preset ultrafast` is
+faster still at a noticeable file-size cost.
 
-## Long videos and shell timeouts
+## Encode in ONE pass — never chunk and concat
 
-A full re-encode of a 3–4 minute video takes a few minutes. Before reaching for
-chunking, use the runtime's own tools:
+**Always encode the whole video in a single command.** Do not split the input into
+parts, encode them separately, and stitch them with `ffmpeg -f concat`.
 
-- **Claude Code**: run the script with `run_in_background` (or raise the Bash
-  `timeout` — max 10 minutes) and add `--preset ultrafast`.
-- **Codex**: run it in the background and poll, or add `--preset ultrafast`.
+Chunk + concat silently corrupts the result: each chunk contributes roughly one extra
+frame, so the picture falls about **1 frame per chunk further behind its own audio**.
+A 3-minute video cut into six 30-second chunks comes out ~4 frames (0.13 s) out of
+sync by the end, and the slip grows steadily rather than being a constant offset. The
+file looks fine on its own — the damage only shows when it is stacked against a
+practice recording in an editor, where every section needs a different nudge. This was
+measured on real output, not theorized; it is the single worst failure mode of this
+skill.
 
-Only if the runtime hard-kills long commands (some sandboxes cap at ~45 s) fall back
-to chunked encoding. Use the script's own `--start` / `--duration` (input seconds) so
-every chunk shares the exact same filter chain, then concat:
+If a full-length encode is too slow for the runtime's command timeout:
+
+1. Add `--preset veryfast` (then `--preset ultrafast`) — usually enough on its own.
+2. **Claude Code**: run with `run_in_background`, or raise the Bash `timeout` (max
+   10 minutes) and poll.
+3. Some sandboxes kill background processes when the tool call returns, and `nohup` /
+   `setsid` do not save them. Verify a background job actually survives before relying
+   on it; if it does not, raise the timeout instead.
+4. If none of that is enough, tell the user the file is too long to encode here and
+   give them the single-pass ffmpeg command to run locally. **Shipping a
+   chunk-concatenated file is worse than shipping nothing** — it wastes a whole
+   practice session before anyone notices.
+
+Sectioning with `--start` / `--duration` is unaffected: one encode, one output, no
+concat. That is a legitimate use.
+
+## Verify before handing the file over
+
+After any slowdown, run the checker. It samples frames and audio from the output,
+matches them against the source, and fits `source_t = slope * out_t`. Both the video
+and audio slopes must equal the intended speed, and the two must agree with each
+other.
 
 ```bash
-S=/abs/path/to/skills/dance-video-tools/scripts/slowdown_video.py
-uv run "$S" --input original.mp4 --speed 0.9 --mirror --preset ultrafast --start 0   --duration 100 --output /tmp/part1.mp4
-uv run "$S" --input original.mp4 --speed 0.9 --mirror --preset ultrafast --start 100 --duration 100 --output /tmp/part2.mp4
-uv run "$S" --input original.mp4 --speed 0.9 --mirror --preset ultrafast --start 200                --output /tmp/part3.mp4
-printf "file '/tmp/part1.mp4'\nfile '/tmp/part2.mp4'\nfile '/tmp/part3.mp4'\n" > /tmp/concat.txt
-ffmpeg -y -f concat -safe 0 -i /tmp/concat.txt -c copy "original_90%_mirror.mp4"
+uv run scripts/check_av_sync.py --source "original.mp4" \
+  --output "original_90%.mp4" --speed 0.9
+# add --mirror if the output was mirrored, or the video check is meaningless
 ```
 
-Don't hand-write the ffmpeg filter chain — the script owns it.
+Passing output (exit 0):
+
+```
+  video : source_t = 0.90000 * out_t + +0.000   (max residual 0 ms)
+  audio : source_t = 0.90000 * out_t + +0.011   (max residual 4 ms)
+  OK — both tracks hold 90.00% within 33 ms over 184 s.
+```
+
+A drift report (exit 1) means the file is not usable for side-by-side comparison —
+re-encode in a single pass rather than handing it over with a caveat. Report the
+result to the user in one line; do not paste the whole output unless it failed.
 
 ## atempo edge case
 
@@ -142,3 +175,4 @@ speeds outside that range (e.g., 0.40 → `atempo=0.5,atempo=0.8`).
 - Share the output's absolute path with one short summary line: speed, mirror, section
   (if any), duration. In Cowork, render the path as a `computer://` link.
 - Don't dump ffmpeg progress logs.
+- Say that the output was sync-verified, in the same line as the summary.
